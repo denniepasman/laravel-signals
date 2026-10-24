@@ -9,7 +9,7 @@ The package stores scrubbed errors in **your own database** and serves them thro
 
 ## Inert unless configured
 
-The package is **active only when `DENNIEOS_INTAKE_SECRET` is set** (non-empty). Without it nothing happens: no Monolog handler, no scheduled commands, no intake route (a request gets a normal 404) and nothing is written to the database. The artisan commands stay available; they print `inactive: DENNIEOS_INTAKE_SECRET is not set` and exit 0. So you can install the package in every environment and set the secret only where it should report.
+The package is **active only when `DENNIEOS_INTAKE_SECRET` is set** (non-empty). Without it nothing happens: the Monolog handler stores nothing, the scheduled commands do not run, the intake route answers an empty 404 and nothing is written to the database. The route, the schedule entries and the handler are always registered; whether they act is decided at runtime, so a cached route file or an early `route:cache` can never leave the package without its route. The artisan commands stay available; they print `inactive: DENNIEOS_INTAKE_SECRET is not set` and exit 0. So you can install the package in every environment and set the secret only where it should report.
 
 ## What it does
 
@@ -53,8 +53,17 @@ Check the result:
 
 ```bash
 php artisan dennieos:status
-php artisan config:cache   # if the app caches its config, do it again after changing the .env
 ```
+
+### After you set the secret
+
+The secret is read from the config. If your deploy caches the config (and it usually does), a changed `.env` is not seen until the cache is rebuilt:
+
+```bash
+php artisan config:cache && php artisan route:cache   # or: php artisan optimize
+```
+
+Then reload PHP-FPM so opcache drops the old cached files (`sudo systemctl reload php8.3-fpm`, adjust the version; on Forge, Ploi and similar this is a button or part of the deploy script). Run `php artisan dennieos:status` afterwards: it reports `Route registered`, `Route cached` and `Config cached`, and says so when the cached config holds a different secret than `.env` (without printing either). Put `php artisan optimize` in your deploy script after the `.env` is in place and you will not need to think about this again.
 
 The route must be reachable over **HTTPS** from the internet (DennieOS refuses `http://`), must not be cached by a CDN (the package sends `Cache-Control: no-store`), and must not be behind a login or a firewall that DennieOS (Vercel, no fixed addresses) cannot pass. The signature is the protection.
 
@@ -153,6 +162,7 @@ The signature is checked against `REQUEST_URI` exactly as sent. Do not rewrite o
 
 - `php artisan dennieos:status` shows what is missing.
 - DennieOS says the source is _stale_: the scheduler is not running (`Scheduler last ran: never`) or `dropped` is growing (the table cannot be written: run the migrations, check the database).
+- **An unsigned `GET /dennieos/intake/v1/events` gives a 404 page.** Either the secret is not active (an empty 404 means the config the app runs with has no `DENNIEOS_INTAKE_SECRET`: run `php artisan config:cache` and reload PHP-FPM), or a route cache built by an older package version (1.0.0 and 1.0.1 registered the route only when the secret was set) lacks the route (Laravel's HTML 404 page: run `php artisan route:clear && php artisan route:cache` after updating to 1.0.2). `php artisan dennieos:status` tells which. With the package active, an unsigned request gets `401`.
 - `401` from the first pull: wrong secret, a clock that is more than 5 minutes off (sync it with NTP), or a proxy that changes the query string.
 - Entries missing from DennieOS: the file is not included in the source's log rules, the level is below the file's minimum, or the entry is the last one of a file that is still being written (it is read once a newer entry follows or after 5 quiet minutes).
 

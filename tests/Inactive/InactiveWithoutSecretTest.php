@@ -10,18 +10,63 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
-it('registers no scheduled commands', function (): void {
-    $commands = collect(app(Schedule::class)->events())->map(fn ($event): string => (string) $event->command)->implode("\n");
+it('registers the scheduled commands but never runs them', function (): void {
+    $events = collect(app(Schedule::class)->events())->filter(fn ($event): bool => str_contains((string) $event->command, 'dennieos:'));
 
-    expect($commands)->not->toContain('dennieos:');
+    expect($events)->not->toBeEmpty()
+        ->and($events->filter(fn ($event): bool => $event->filtersPass($this->app)))->toBeEmpty();
+
+    config()->set('dennieos-signals.secret', TestCase::SECRET);
+
+    expect($events->filter(fn ($event): bool => $event->filtersPass($this->app)))->not->toBeEmpty();
 });
 
-it('registers no intake route', function (): void {
-    expect(Route::has('dennieos.intake.events'))->toBeFalse();
+it('registers the intake route so a cached route file always has it, and answers an empty 404', function (): void {
+    expect(Route::has('dennieos.intake.events'))->toBeTrue();
+
+    $response = $this->get('/dennieos/intake/v1/events');
+    $response->assertNotFound();
+    expect($response->getContent())->toBe('');
+});
+
+it('answers an empty 404 to a signed request too, without touching the database', function (): void {
+    \Illuminate\Support\Facades\DB::enableQueryLog();
+
+    $response = signedGet($this, '/dennieos/intake/v1/events?limit=10');
+
+    $response->assertNotFound();
+    expect($response->getContent())->toBe('')
+        ->and(\Illuminate\Support\Facades\DB::getQueryLog())->toBe([]);
+});
+
+it('becomes active at runtime when the secret is set, with no re-registration', function (): void {
     $this->get('/dennieos/intake/v1/events')->assertNotFound();
+
+    config()->set('dennieos-signals.secret', TestCase::SECRET);
+
+    $this->get('/dennieos/intake/v1/events')->assertStatus(401);
+    signedGet($this, '/dennieos/intake/v1/events?limit=10')->assertOk()->assertJsonPath('events', []);
 });
 
-it('does not attach the Monolog handler and stores nothing', function (): void {
+it('survives a route:cache built without a secret', function (): void {
+    $compiled = $this->app['router']->getRoutes()->compile();
+    $this->app['router']->setCompiledRoutes($compiled);
+
+    expect(Route::has('dennieos.intake.events'))->toBeTrue();
+    $this->get('/dennieos/intake/v1/events')->assertNotFound();
+
+    config()->set('dennieos-signals.secret', TestCase::SECRET);
+    signedGet($this, '/dennieos/intake/v1/events?limit=10')->assertOk();
+});
+
+it('starts storing server errors at runtime once the secret is set', function (): void {
+    config()->set('dennieos-signals.secret', TestCase::SECRET);
+    Log::error('boom after the secret');
+
+    expect(Database::table('dennieos_error_events')->count())->toBe(1);
+});
+
+it('attaches a silent Monolog handler and stores nothing', function (): void {
     Log::error('boom without a secret');
 
     expect(Database::table('dennieos_error_events')->count())->toBe(0);
@@ -42,6 +87,27 @@ it('says it is inactive in dennieos:status and exits 0', function (): void {
     $this->artisan('dennieos:status')
         ->expectsOutputToContain('inactive: DENNIEOS_INTAKE_SECRET is not set')
         ->assertExitCode(0);
+});
+
+it('tells a stale config cache apart when .env holds a secret the cache lacks', function (): void {
+    $dir = sys_get_temp_dir().'/dennieos-signals-env-'.bin2hex(random_bytes(6));
+    mkdir($dir);
+    file_put_contents($dir.'/.env', 'DENNIEOS_INTAKE_SECRET='.TestCase::SECRET."\n");
+    file_put_contents($dir.'/config.php', '<?php return [];');
+    $this->app->useEnvironmentPath($dir);
+    $this->app->loadEnvironmentFrom('.env');
+    fakeCachedConfig($this->app, $dir);
+
+    try {
+        $this->artisan('dennieos:status')
+            ->expectsOutputToContain('inactive:')
+            ->expectsOutputToContain('run php artisan config:cache')
+            ->doesntExpectOutputToContain(TestCase::SECRET)
+            ->assertExitCode(0);
+    } finally {
+        fakeCachedConfig($this->app, null);
+        \Illuminate\Support\Facades\File::deleteDirectory($dir);
+    }
 });
 
 it('stays inactive for an empty or blank secret', function (string $secret): void {

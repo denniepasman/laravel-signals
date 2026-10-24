@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dennieos\LaravelSignals\Logging;
 
+use Dennieos\LaravelSignals\Activation;
 use Dennieos\LaravelSignals\Storage\EventStore;
 use Dennieos\LaravelSignals\Support\EventBuilder;
 use Dennieos\LaravelSignals\Support\LogEntryParser;
@@ -34,6 +35,12 @@ final class DennieosHandler extends AbstractProcessingHandler
         bool $bubble = true,
     ) {
         parent::__construct($level, $bubble);
+    }
+
+    /** Decided per record: the handler is always attached, but stays silent without the secret. */
+    public function isHandling(LogRecord $record): bool
+    {
+        return Activation::isActive() && parent::isHandling($record);
     }
 
     protected function write(LogRecord $record): void

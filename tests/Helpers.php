@@ -79,3 +79,18 @@ function storeEvent(string $id, string $message = 'boom', string $level = 'error
         'context' => ['route' => 'payments.store', 'method' => 'POST', 'status' => 500, 'url_path' => '/betalen/42'],
     ]));
 }
+
+/** Makes the app believe its config is cached (Laravel 10 checks the file, newer lines a binding), or undoes it with null. */
+function fakeCachedConfig(\Illuminate\Foundation\Application $app, ?string $directory): void
+{
+    if ($directory === null) {
+        putenv('APP_CONFIG_CACHE');
+        unset($_SERVER['APP_CONFIG_CACHE']);
+        $app->forgetInstance('config_loaded_from_cache');
+
+        return;
+    }
+    putenv('APP_CONFIG_CACHE='.$directory.'/config.php');
+    $_SERVER['APP_CONFIG_CACHE'] = $directory.'/config.php';
+    $app->instance('config_loaded_from_cache', true);
+}

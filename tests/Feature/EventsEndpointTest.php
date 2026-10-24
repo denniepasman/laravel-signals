@@ -52,11 +52,11 @@ it('refuses with 401, without saying why', function (string $case): void {
     $response->assertStatus(401)->assertExactJson(['error' => 'unauthorized']);
 })->with(['no headers', 'wrong secret', 'expired', 'future', 'tampered', 'garbage']);
 
-it('refuses everything when no secret is configured', function (): void {
+it('answers an empty 404 when no secret is configured', function (): void {
     config()->set('dennieos-signals.secret', null);
     config()->set('dennieos-signals.previous_secret', null);
 
-    signedGet($this, EVENTS_PATH.'?limit=500', '')->assertStatus(401);
+    signedGet($this, EVENTS_PATH.'?limit=500', '')->assertNotFound();
 });
 
 it('returns the contract event shape in ascending order and pages with next_cursor', function (): void {

@@ -11,6 +11,7 @@ use Dennieos\LaravelSignals\Console\StatusCommand;
 use Dennieos\LaravelSignals\Console\SyncProvidersCommand;
 use Dennieos\LaravelSignals\Contracts\ErrorProvider;
 use Dennieos\LaravelSignals\Http\Controllers\EventsController;
+use Dennieos\LaravelSignals\Http\Middleware\EnsureIntakeActive;
 use Dennieos\LaravelSignals\Http\Middleware\VerifyIntakeSignature;
 use Dennieos\LaravelSignals\Logging\DennieosHandler;
 use Dennieos\LaravelSignals\Logging\LogScanner;
@@ -74,10 +75,8 @@ final class SignalsServiceProvider extends ServiceProvider
             $this->commands([HeartbeatCommand::class, ScanLogsCommand::class, SyncProvidersCommand::class, PruneCommand::class, StatusCommand::class]);
         }
 
-        if (! Activation::isActive()) {
-            return;
-        }
-
+        // Nothing below depends on the secret: route:cache and config:cache are built at deploy time,
+        // possibly before the secret exists. Activation is decided at runtime (Activation::isActive()).
         $this->registerRoutes();
         $this->registerSchedule();
         $this->attachHandler();
@@ -90,7 +89,7 @@ final class SignalsServiceProvider extends ServiceProvider
         }
         RateLimiter::for('dennieos-intake', fn (Request $request): Limit => Limit::perMinute((int) config('dennieos-signals.route.rate_limit_per_minute', 60))->by('dennieos-intake'));
 
-        Route::middleware([...(array) config('dennieos-signals.route.middleware', []), VerifyIntakeSignature::class, 'throttle:dennieos-intake'])
+        Route::middleware([EnsureIntakeActive::class, ...(array) config('dennieos-signals.route.middleware', []), VerifyIntakeSignature::class, 'throttle:dennieos-intake'])
             ->prefix((string) config('dennieos-signals.route.prefix', 'dennieos/intake/v1'))
             ->group(function (): void {
                 Route::get('events', EventsController::class)->name('dennieos.intake.events');
@@ -103,12 +102,13 @@ final class SignalsServiceProvider extends ServiceProvider
             return;
         }
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
-            $schedule->command('dennieos:heartbeat')->everyMinute();
+            $isActive = fn (): bool => Activation::isActive();
+            $schedule->command('dennieos:heartbeat')->everyMinute()->when($isActive);
             if (config('dennieos-signals.providers') !== []) {
-                $schedule->command('dennieos:sync-providers')->everyMinute()->withoutOverlapping();
+                $schedule->command('dennieos:sync-providers')->everyMinute()->withoutOverlapping()->when($isActive);
             }
-            $schedule->command('dennieos:scan-logs')->everyFiveMinutes()->withoutOverlapping();
-            $schedule->command('dennieos:prune')->dailyAt('03:30');
+            $schedule->command('dennieos:scan-logs')->everyFiveMinutes()->withoutOverlapping()->when($isActive);
+            $schedule->command('dennieos:prune')->dailyAt('03:30')->when($isActive);
         });
     }
 
