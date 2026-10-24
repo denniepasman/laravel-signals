@@ -7,6 +7,7 @@ use Dennieos\LaravelSignals\Storage\EventStore;
 use Dennieos\LaravelSignals\Storage\State;
 use Dennieos\LaravelSignals\Support\Signature;
 use Dennieos\LaravelSignals\Tests\TestCase;
+use Dennieos\LaravelSignals\Version;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
@@ -24,7 +25,7 @@ it('answers the signed first pull of the shared vectors with 200, no-store and a
         ->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonPath('events', [])
         ->assertJsonPath('heartbeat.contract_version', '1')
-        ->assertJsonPath('heartbeat.package_version', '1.0.0')
+        ->assertJsonPath('heartbeat.package_version', Version::PACKAGE)
         ->assertJsonPath('heartbeat.dropped', 0)
         ->assertJsonPath('heartbeat.buffered', 0);
     expect($response->getContent())->toContain('"events":[]');

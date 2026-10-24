@@ -4,7 +4,7 @@ Client error intake for [DennieOS](https://github.com/denniepasman/dennie-os) in
 
 The package stores scrubbed errors in **your own database** and serves them through one **signed, read-only route**. DennieOS pulls them on its own schedule (default three times a day). Nothing is pushed anywhere, no database credentials ever leave the app, and what you keep, and for how long, is your decision.
 
-- Laravel 10, 11 and 12, PHP 8.2 or higher
+- Laravel 10, 11, 12 and 13 (Laravel 13 needs PHP 8.3 or higher), PHP 8.2 or higher
 - Contract: `docs/integrations/client-intake-contract.md` in the DennieOS repository (the signing test vectors live there and are copied to `tests/fixtures/`)
 
 ## Inert unless configured
@@ -165,4 +165,4 @@ vendor/bin/pest
 
 `tests/fixtures/client-intake-test-vectors.json` is a verbatim copy of `docs/integrations/client-intake-test-vectors.json` in the DennieOS repository, the single source for the signing vectors. When the contract changes there, copy the file again.
 
-CI runs the suite on PHP 8.2 to 8.4 against Laravel 10, 11 and 12 (`.github/workflows/tests.yml`). Releases are tagged `vMAJOR.MINOR.PATCH`; `Dennieos\LaravelSignals\Version::PACKAGE` is reported in the heartbeat so DennieOS can show outdated installations, so bump it with the tag.
+CI runs the suite on PHP 8.2 to 8.5 against Laravel 10 to 13 (each Laravel line on the PHP versions it supports) (`.github/workflows/tests.yml`). Releases are tagged `vMAJOR.MINOR.PATCH`; `Dennieos\LaravelSignals\Version::PACKAGE` is reported in the heartbeat so DennieOS can show outdated installations, so bump it with the tag.
