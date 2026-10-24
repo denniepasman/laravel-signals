@@ -14,12 +14,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.2', '8.3', '8.4']
-        laravel: ['10', '11', '12']
+        php: ['8.2', '8.3', '8.4', '8.5']
+        laravel: ['10', '11', '12', '13']
         exclude:
-          # Laravel 12 needs PHP 8.2+, Laravel 10 is only tested up to PHP 8.3.
+          # Each Laravel line supports a PHP range: 10 = 8.1-8.3, 11 = 8.2-8.4,
+          # 12 = 8.2-8.5, 13 = 8.3-8.5.
           - php: '8.4'
             laravel: '10'
+          - php: '8.5'
+            laravel: '10'
+          - php: '8.5'
+            laravel: '11'
+          - php: '8.2'
+            laravel: '13'
         include:
           - laravel: '10'
             testbench: '^8.0'
@@ -30,6 +37,9 @@ jobs:
           - laravel: '12'
             testbench: '^10.0'
             pest: '^3.0'
+          - laravel: '13'
+            testbench: '^11.0'
+            pest: '^4.0'
     name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +49,10 @@ jobs:
           extensions: mbstring, pdo_sqlite, sqlite3
           coverage: none
       - name: Install dependencies
+        env:
+          # Older Laravel lines carry published advisories; Composer would
+          # otherwise refuse to resolve them, and these rows only test compatibility.
+          COMPOSER_NO_SECURITY_BLOCKING: '1'
         run: >
           composer update --no-interaction --no-progress --prefer-dist
           --with "laravel/framework:^${{ matrix.laravel }}.0"
