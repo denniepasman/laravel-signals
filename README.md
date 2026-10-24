@@ -25,7 +25,7 @@ The package is **active only when `DENNIEOS_INTAKE_SECRET` is set** (non-empty).
 
 ## Install
 
-The package is private. Add the repository to the app's `composer.json` (the machine that runs `composer` needs read access to `denniepasman/laravel-signals`, for example a deploy key or a fine-grained read-only token):
+The package is public on GitHub and not (yet) on Packagist. Add the repository to the app's `composer.json`; no token is needed:
 
 ```bash
 composer config repositories.dennieos-signals vcs https://github.com/denniepasman/laravel-signals
