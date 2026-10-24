@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dennieos\LaravelSignals\Console;
 
 use Dennieos\LaravelSignals\Storage\EventStore;
+use Dennieos\LaravelSignals\Activation;
 use Illuminate\Console\Command;
 
 final class PruneCommand extends Command
@@ -15,6 +16,12 @@ final class PruneCommand extends Command
 
     public function handle(EventStore $store): int
     {
+        if (! Activation::isActive()) {
+            $this->line(Activation::INACTIVE_MESSAGE);
+
+            return self::SUCCESS;
+        }
+
         $days = $this->option('days') !== null ? (int) $this->option('days') : (int) config('dennieos-signals.retention_days', 30);
         if ($days < 1) {
             $this->error('Retention must be at least 1 day.');

@@ -8,6 +8,7 @@ use Dennieos\LaravelSignals\Storage\Database;
 use Dennieos\LaravelSignals\Storage\State;
 use Dennieos\LaravelSignals\Support\LogFiles;
 use Dennieos\LaravelSignals\Version;
+use Dennieos\LaravelSignals\Activation;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
 
@@ -19,6 +20,12 @@ final class StatusCommand extends Command
 
     public function handle(LogFiles $files): int
     {
+        if (! Activation::isActive()) {
+            $this->line(Activation::INACTIVE_MESSAGE);
+
+            return self::SUCCESS;
+        }
+
         $tables = Schema::connection(config('dennieos-signals.connection'))->hasTable('dennieos_error_events');
         $this->line('Package version: '.Version::PACKAGE.' (contract v'.Version::CONTRACT.')');
         $this->line('Tables migrated: '.($tables ? 'yes' : 'NO, run php artisan migrate'));

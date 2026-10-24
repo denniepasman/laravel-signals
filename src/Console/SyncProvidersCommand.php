@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dennieos\LaravelSignals\Console;
 
 use Dennieos\LaravelSignals\Providers\ProviderSync;
+use Dennieos\LaravelSignals\Activation;
 use Illuminate\Console\Command;
 
 final class SyncProvidersCommand extends Command
@@ -15,6 +16,12 @@ final class SyncProvidersCommand extends Command
 
     public function handle(ProviderSync $sync): int
     {
+        if (! Activation::isActive()) {
+            $this->line(Activation::INACTIVE_MESSAGE);
+
+            return self::SUCCESS;
+        }
+
         foreach ($sync->sync() as $name => $count) {
             $this->line(sprintf('%s: %d new event(s)', $name, $count));
         }

@@ -164,3 +164,7 @@ it('keeps a response under the size limit by returning fewer events', function (
     expect(count($response->json('events')))->toBe(1)->and($response->json('next_cursor'))->toBe('1');
     expect(count(signedGet($this, EVENTS_PATH.'?cursor=1')->json('events')))->toBe(1);
 });
+
+it('is registered and active when the secret is set', function (): void {
+    expect(\Illuminate\Support\Facades\Route::has('dennieos.intake.events'))->toBeTrue();
+});

@@ -7,6 +7,7 @@ namespace Dennieos\LaravelSignals\Console;
 use Dennieos\LaravelSignals\Logging\LogScanner;
 use Dennieos\LaravelSignals\Storage\State;
 use Dennieos\LaravelSignals\Support\LogFilter;
+use Dennieos\LaravelSignals\Activation;
 use Illuminate\Console\Command;
 
 final class ScanLogsCommand extends Command
@@ -17,6 +18,12 @@ final class ScanLogsCommand extends Command
 
     public function handle(LogScanner $scanner): int
     {
+        if (! Activation::isActive()) {
+            $this->line(Activation::INACTIVE_MESSAGE);
+
+            return self::SUCCESS;
+        }
+
         $stored = State::get(State::LOG_FILTER);
         $decoded = $stored === null ? null : json_decode($stored, true);
         $filter = (is_array($decoded) ? LogFilter::fromArray($decoded) : null) ?? LogFilter::default();
