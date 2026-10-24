@@ -53,3 +53,71 @@ it('reports the installation status', function (): void {
         ->expectsOutputToContain('Intake secret set: yes')
         ->assertExitCode(0);
 });
+
+it('reports the route and the config cache in the status', function (): void {
+    $this->artisan('dennieos:status')
+        ->expectsOutputToContain('Route registered: yes')
+        ->expectsOutputToContain('Config cached: no')
+        ->assertExitCode(0);
+});
+
+it('reports a missing route with the fix and exits 1', function (): void {
+    $routes = new \Illuminate\Routing\RouteCollection();
+    $this->app['router']->setRoutes($routes);
+
+    $this->artisan('dennieos:status')
+        ->expectsOutputToContain('Route registered: NO (run php artisan route:clear && php artisan route:cache)')
+        ->assertExitCode(1);
+});
+
+it('says when the route is disabled on purpose', function (): void {
+    config()->set('dennieos-signals.route.enabled', false);
+    $this->app['router']->setRoutes(new \Illuminate\Routing\RouteCollection());
+
+    $this->artisan('dennieos:status')
+        ->expectsOutputToContain('Route registered: disabled')
+        ->assertExitCode(0);
+});
+
+it('detects a cached config whose secret differs from .env without printing either', function (): void {
+    $dir = sys_get_temp_dir().'/dennieos-signals-env-'.bin2hex(random_bytes(6));
+    mkdir($dir);
+    $other = str_repeat('9', 64);
+    file_put_contents($dir.'/.env', "DENNIEOS_INTAKE_SECRET={$other}\n");
+    file_put_contents($dir.'/config.php', '<?php return [];');
+    $this->app->useEnvironmentPath($dir);
+    $this->app->loadEnvironmentFrom('.env');
+    fakeCachedConfig($this->app, $dir);
+
+    try {
+        $this->artisan('dennieos:status')
+            ->expectsOutputToContain('Config cached: yes')
+            ->expectsOutputToContain('Config cache is stale')
+            ->doesntExpectOutputToContain($other)
+            ->doesntExpectOutputToContain(\Dennieos\LaravelSignals\Tests\TestCase::SECRET)
+            ->assertExitCode(1);
+    } finally {
+        fakeCachedConfig($this->app, null);
+        \Illuminate\Support\Facades\File::deleteDirectory($dir);
+    }
+});
+
+it('accepts a cached config that matches .env', function (): void {
+    $dir = sys_get_temp_dir().'/dennieos-signals-env-'.bin2hex(random_bytes(6));
+    mkdir($dir);
+    file_put_contents($dir.'/.env', 'DENNIEOS_INTAKE_SECRET='.\Dennieos\LaravelSignals\Tests\TestCase::SECRET."\n");
+    file_put_contents($dir.'/config.php', '<?php return [];');
+    $this->app->useEnvironmentPath($dir);
+    $this->app->loadEnvironmentFrom('.env');
+    fakeCachedConfig($this->app, $dir);
+
+    try {
+        $this->artisan('dennieos:status')
+            ->expectsOutputToContain('Config cached: yes')
+            ->doesntExpectOutputToContain('stale')
+            ->assertExitCode(0);
+    } finally {
+        fakeCachedConfig($this->app, null);
+        \Illuminate\Support\Facades\File::deleteDirectory($dir);
+    }
+});
