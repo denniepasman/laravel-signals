@@ -114,3 +114,9 @@ it('never throws while the app is failing, even when the table is gone', functio
 
     expect(file_get_contents($this->logDir().'/laravel.log'))->toContain('still reaches laravel.log');
 });
+
+it('attaches the handler when the secret is set', function (): void {
+    \Illuminate\Support\Facades\Log::error('boom with a secret');
+
+    expect(\Dennieos\LaravelSignals\Storage\Database::table('dennieos_error_events')->count())->toBe(1);
+});

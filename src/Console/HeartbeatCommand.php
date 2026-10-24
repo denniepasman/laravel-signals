@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dennieos\LaravelSignals\Console;
 
 use Dennieos\LaravelSignals\Storage\State;
+use Dennieos\LaravelSignals\Activation;
 use Illuminate\Console\Command;
 
 final class HeartbeatCommand extends Command
@@ -15,6 +16,12 @@ final class HeartbeatCommand extends Command
 
     public function handle(): int
     {
+        if (! Activation::isActive()) {
+            $this->line(Activation::INACTIVE_MESSAGE);
+
+            return self::SUCCESS;
+        }
+
         State::touch(State::SCHEDULER_LAST_RUN_AT);
 
         return self::SUCCESS;

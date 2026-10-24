@@ -66,11 +66,16 @@ final class SignalsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // The migration always runs: empty tables are harmless, so activating later needs no extra step.
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         if ($this->app->runningInConsole()) {
             $this->publishes([__DIR__.'/../config/dennieos-signals.php' => config_path('dennieos-signals.php')], 'dennieos-signals-config');
             $this->commands([HeartbeatCommand::class, ScanLogsCommand::class, SyncProvidersCommand::class, PruneCommand::class, StatusCommand::class]);
+        }
+
+        if (! Activation::isActive()) {
+            return;
         }
 
         $this->registerRoutes();

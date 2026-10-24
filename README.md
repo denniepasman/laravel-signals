@@ -7,11 +7,15 @@ The package stores scrubbed errors in **your own database** and serves them thro
 - Laravel 10, 11 and 12, PHP 8.2 or higher
 - Contract: `docs/integrations/client-intake-contract.md` in the DennieOS repository (the signing test vectors live there and are copied to `tests/fixtures/`)
 
+## Inert unless configured
+
+The package is **active only when `DENNIEOS_INTAKE_SECRET` is set** (non-empty). Without it nothing happens: no Monolog handler, no scheduled commands, no intake route (a request gets a normal 404) and nothing is written to the database. The artisan commands stay available; they print `inactive: DENNIEOS_INTAKE_SECRET is not set` and exit 0. So you can install the package in every environment and set the secret only where it should report.
+
 ## What it does
 
 | Part | Command or class | What it does |
 | --- | --- | --- |
-| Monolog handler | `DENNIEOS_CAPTURE_SERVER_ERRORS` (default on) | Stores every record at `error` or above, scrubbed, in `dennieos_error_events`. Sets `context.command` for errors in console commands. |
+| Monolog handler | `DENNIEOS_CAPTURE_SERVER_ERRORS` (default on, once the secret is set) | Stores every record at `error` or above, scrubbed, in `dennieos_error_events`. Sets `context.command` for errors in console commands. |
 | Log scanner | `php artisan dennieos:scan-logs` | Reads complete entries from the **included** files in `storage/logs` that did not reach the handler (warnings, other processes, history). Works for the `single` and the `daily` channel and never imports an entry twice. |
 | Table providers | `php artisan dennieos:sync-providers` | Copies new rows from tables where your app already stores its own errors into the same table, under the same cursor. |
 | Heartbeat | `php artisan dennieos:heartbeat` | Written every minute by the scheduler; reported in every response so DennieOS notices a silent source. |
@@ -29,13 +33,15 @@ composer require dennieos/laravel-signals:^1.0
 php artisan migrate
 ```
 
-The service provider is discovered automatically. Then, in the app's `.env` (the secret and the salt are shown **once** in the DennieOS connect wizard; they are never committed):
+The service provider is discovered automatically. Then, in the `.env` of the environment that should report (the secret and the salt are shown **once** in the DennieOS connect wizard; they are never committed):
 
 ```dotenv
 DENNIEOS_INTAKE_SECRET=<from the DennieOS wizard>
 DENNIEOS_USER_HASH_SALT=<from the DennieOS wizard>
 DENNIEOS_RELEASE=<optional: deployed release or commit>
 ```
+
+**Staging: do not set the secret.** An environment without `DENNIEOS_INTAKE_SECRET` is completely inert, so there are no flags to switch off. The migration always creates the (empty) tables, which is harmless and means setting the secret later needs no extra step.
 
 Make sure the Laravel scheduler runs (one cron entry, if it is not there yet):
 
@@ -58,11 +64,11 @@ In DennieOS choose _Geheim roteren_: a new secret is shown once. Put the new one
 
 ## Configuration
 
-Publish the config with `php artisan vendor:publish --tag=dennieos-signals-config`. Everything below can be set from `.env`:
+Publish the config with `php artisan vendor:publish --tag=dennieos-signals-config`. Everything below can be set from `.env`. The three flags only matter once the secret is set; they default to `true` then and can still be set to `false` explicitly.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `DENNIEOS_INTAKE_SECRET` | none | The HMAC secret. Without it every request is refused. |
+| `DENNIEOS_INTAKE_SECRET` | none | The HMAC secret. **Without it the package is inactive** (see above). |
 | `DENNIEOS_INTAKE_SECRET_PREVIOUS` | none | The previous secret during a rotation. |
 | `DENNIEOS_USER_HASH_SALT` | none | Salt for `context.user_hash`. Without it no user is recorded at all. |
 | `DENNIEOS_RELEASE` | none | Sent as `context.release`. |
